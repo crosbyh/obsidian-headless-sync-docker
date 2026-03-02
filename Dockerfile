@@ -1,5 +1,8 @@
 FROM node:22-alpine
 
+# su-exec: minimal privilege-dropping tool (replaces gosu on Alpine)
+RUN apk add --no-cache su-exec
+
 # Install obsidian-headless CLI (requires Node 22+)
 RUN npm install -g obsidian-headless
 
