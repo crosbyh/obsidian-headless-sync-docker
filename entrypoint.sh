@@ -1,6 +1,24 @@
 #!/bin/sh
 set -e
 
+# Subcommand dispatch — lets helpers and raw ob commands be called directly:
+#   docker run --rm -it <image> get-token
+#   docker run --rm -it <image> ob sync-list-remote
+case "$1" in
+  get-token)
+    exec /usr/local/bin/get-token
+    ;;
+  ob)
+    shift
+    exec ob "$@"
+    ;;
+  "")
+    ;;   # fall through to sync logic below
+  *)
+    exec "$@"
+    ;;
+esac
+
 VAULT_PATH="${VAULT_PATH:-/vault}"
 
 # Validate required env vars
