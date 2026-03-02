@@ -1,6 +1,7 @@
 services:
   obsidian-sync:
     image: ghcr.io/${GHCR_REPO:-crosbyh/obsidian-headless-sync-docker}:latest
+    container_name: obsidian-sync
     environment:
       # Required
       OBSIDIAN_AUTH_TOKEN: ${OBSIDIAN_AUTH_TOKEN}
