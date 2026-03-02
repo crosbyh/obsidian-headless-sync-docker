@@ -1,0 +1,5 @@
+.git
+.env
+.env.local
+vault/
+node_modules/

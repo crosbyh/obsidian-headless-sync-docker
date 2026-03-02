@@ -1,0 +1,21 @@
+services:
+  obsidian-sync:
+    image: ghcr.io/${GHCR_REPO:-crosbyh/obsidian-headless-sync-docker}:latest
+    environment:
+      # Required
+      OBSIDIAN_AUTH_TOKEN: ${OBSIDIAN_AUTH_TOKEN}
+      VAULT_NAME: ${VAULT_NAME}
+      # Optional overrides
+      VAULT_PATH: ${VAULT_PATH:-/vault}
+      DEVICE_NAME: ${DEVICE_NAME:-obsidian-docker}
+      CONFLICT_STRATEGY: ${CONFLICT_STRATEGY:-merge}
+      EXCLUDED_FOLDERS: ${EXCLUDED_FOLDERS:-}
+      FILE_TYPES: ${FILE_TYPES:-}
+    volumes:
+      - ${VAULT_HOST_PATH:-./vault}:/vault
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
