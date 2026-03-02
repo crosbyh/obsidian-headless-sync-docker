@@ -80,12 +80,61 @@ docker compose logs -f
 | `OBSIDIAN_AUTH_TOKEN` | Yes | — | Auth token from `get-token` |
 | `VAULT_NAME` | Yes (first run) | — | Exact name of the remote Obsidian Sync vault |
 | `VAULT_HOST_PATH` | Yes | `./vault` | Host path where vault files will be written |
+| `VAULT_PASSWORD` | If E2E enabled | — | Vault end-to-end encryption password (see below) |
+| `PUID` | No | `1000` | UID that will own synced files on the host (see below) |
+| `PGID` | No | `1000` | GID that will own synced files on the host (see below) |
 | `VAULT_PATH` | No | `/vault` | In-container mount path (advanced) |
 | `DEVICE_NAME` | No | `obsidian-docker` | Label shown in Obsidian Sync history |
 | `CONFLICT_STRATEGY` | No | `merge` | `merge` or `conflict` |
 | `EXCLUDED_FOLDERS` | No | — | Comma-separated vault folders to skip |
 | `FILE_TYPES` | No | — | Extra types to sync: `image,audio,video,pdf,unsupported` |
 | `GHCR_REPO` | No | — | Override image repository when self-building |
+
+---
+
+## File Ownership (PUID / PGID)
+
+By default the container process drops to UID/GID `1000:1000` before writing any files, so vault files on the host are owned by that user. Set `PUID` and `PGID` in `.env` to match whichever host user should own the files.
+
+**Regular Docker** (daemon runs as root):
+
+```bash
+# Find your UID and GID
+id
+# uid=1000(you) gid=1000(you) ...
+```
+
+```env
+PUID=1000
+PGID=1000
+```
+
+**Rootless Docker** (daemon runs as your user):
+
+In rootless mode, container UID 0 already maps to the host user running the daemon — so files written by "root" inside the container land as your user on the host. Set both to `0`:
+
+```env
+PUID=0
+PGID=0
+```
+
+Setting any other UID in rootless mode will map to a sub-UID from `/etc/subuid` (typically a high number like `100999`), which is almost certainly not what you want.
+
+---
+
+## End-to-End Encryption (VAULT_PASSWORD)
+
+Obsidian Sync supports optional end-to-end encryption with a separate vault password. If your vault has this enabled, `ob sync-setup` will fail to authenticate until the password is provided.
+
+**To check:** In the Obsidian desktop app, go to **Settings → Sync** and look for an "Encryption password" field — if it's present and set, E2E is active.
+
+Add the password to your `.env`:
+
+```env
+VAULT_PASSWORD=your-vault-encryption-password
+```
+
+> **Note:** `VAULT_PASSWORD` is the *vault encryption password* you chose in Obsidian, not your Obsidian account password. They are separate credentials.
 
 ---
 
@@ -110,34 +159,6 @@ Then update `docker-compose.yml` to use `image: obsidian-headless-sync-docker`.
 
 ---
 
-## Publishing to GitHub Container Registry
-
-The workflow at `.github/workflows/docker-publish.yml` handles this automatically.
-
-### What triggers a publish
-
-| Event | Tags pushed |
-|---|---|
-| Push to `main` / `master` | `latest`, `sha-<short-sha>` |
-| Push tag `v1.2.3` | `1.2.3`, `1.2` |
-| Pull request | Image built but **not** pushed |
-
-### Required setup (one-time, in your GitHub repo)
-
-1. Go to **Settings → Actions → General** and confirm "Read and write permissions" is enabled for `GITHUB_TOKEN`.
-2. After the first successful push, go to **Packages** on your GitHub profile, find the package, and set visibility to **Public** if desired.
-
-No secrets need to be added manually — the workflow uses the automatically-provided `GITHUB_TOKEN`.
-
-### Making the package public
-
-By default GHCR packages inherit the repo's visibility. To make the image publicly pullable:
-
-1. GitHub profile → **Packages** → select the package
-2. **Package settings** → **Change visibility** → Public
-
----
-
 ## Updating the Image
 
 ```bash
@@ -157,29 +178,6 @@ Your vault files remain on disk at `VAULT_HOST_PATH`.
 
 ---
 
-## How It Works
-
-```
-┌─────────────────────────────────────────────────┐
-│  node:22-alpine container                       │
-│                                                 │
-│  entrypoint.sh                                  │
-│    1. Validates OBSIDIAN_AUTH_TOKEN             │
-│    2. Runs ob sync-setup (first run only)       │
-│    3. Applies optional sync config              │
-│    4. exec ob sync --continuous                 │
-│         ↕ (watches for local & remote changes) │
-└──────────────────┬──────────────────────────────┘
-                   │ bind mount
-            ┌──────▼──────┐
-            │  ./vault/   │  ← your Obsidian vault on the host
-            └─────────────┘
-```
-
-The container uses `OBSIDIAN_AUTH_TOKEN` directly — no system keychain or interactive login is needed after the initial token retrieval.
-
----
-
 ## Troubleshooting
 
 **Container exits immediately**
@@ -187,6 +185,13 @@ The container uses `OBSIDIAN_AUTH_TOKEN` directly — no system keychain or inte
 
 **"Vault not found" error on setup**
 - Confirm the vault name matches exactly (case-sensitive): run `ob sync-list-remote` as shown in Step 2.
+
+**"Failed to validate password" on setup**
+- Your vault has end-to-end encryption enabled. Set `VAULT_PASSWORD` in `.env` to the encryption password from **Obsidian → Settings → Sync**. This is distinct from your Obsidian account password.
+
+**Vault files owned by wrong user / permission denied**
+- Set `PUID` and `PGID` in `.env` to the UID/GID of the host user who should own the files (`id` will show your current values).
+- For rootless Docker, set both to `0`.
 
 **Sync stops after a while**
 - The `restart: unless-stopped` policy in `docker-compose.yml` will restart the container automatically.
