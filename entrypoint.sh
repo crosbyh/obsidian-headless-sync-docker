@@ -65,6 +65,9 @@ if [ -n "$VAULT_NAME" ]; then
   if [ -n "$VAULT_PASSWORD" ]; then
     SETUP_CMD="$SETUP_CMD --password \"$VAULT_PASSWORD\""
   fi
+  if [ -n "$CONFIG_DIR" ]; then
+    SETUP_CMD="$SETUP_CMD --config-dir \"$CONFIG_DIR\""
+  fi
   if ! su-exec "${PUID}:${PGID}" sh -c "$SETUP_CMD"; then
     echo "[obsidian-headless] ERROR: ob sync-setup failed." >&2
     echo "[obsidian-headless] Check OBSIDIAN_AUTH_TOKEN and VAULT_NAME are correct." >&2
@@ -92,6 +95,18 @@ fi
 
 if [ -n "$FILE_TYPES" ]; then
   su-exec "${PUID}:${PGID}" ob sync-config --file-types "$FILE_TYPES" 2>/dev/null || true
+fi
+
+if [ -n "$SYNC_MODE" ]; then
+  su-exec "${PUID}:${PGID}" ob sync-config --mode "$SYNC_MODE" 2>/dev/null || true
+fi
+
+if [ -n "$SYNC_CONFIGS" ]; then
+  su-exec "${PUID}:${PGID}" ob sync-config --configs "$SYNC_CONFIGS" 2>/dev/null || true
+fi
+
+if [ -n "$CONFIG_DIR" ]; then
+  su-exec "${PUID}:${PGID}" ob sync-config --config-dir "$CONFIG_DIR" 2>/dev/null || true
 fi
 
 # ---------------------------------------------------------------------------

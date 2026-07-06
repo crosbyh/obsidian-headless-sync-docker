@@ -99,6 +99,9 @@ docker compose logs -f
 | `CONFLICT_STRATEGY` | No | `merge` | `merge` or `conflict` |
 | `EXCLUDED_FOLDERS` | No | — | Comma-separated vault folders to skip |
 | `FILE_TYPES` | No | — | Extra types to sync: `image,audio,video,pdf,unsupported` |
+| `SYNC_MODE` | No | `bidirectional` | `bidirectional`, `pull-only` (download only, ignore local changes), or `mirror-remote` (download only, revert local changes) |
+| `SYNC_CONFIGS` | No | — | Config categories to sync: `app,appearance,appearance-data,hotkey,core-plugin,core-plugin-data,community-plugin,community-plugin-data` |
+| `CONFIG_DIR` | No | `.obsidian` | Vault config directory name |
 | `GHCR_REPO` | No | — | Override image repository when self-building |
 
 ---
@@ -153,7 +156,7 @@ VAULT_PASSWORD=your-vault-encryption-password
 
 ### Pre-built (recommended)
 
-Images are published to the GitHub Container Registry on every push to `main` and on version tags.
+Images are published to the GitHub Container Registry on every push to `main`, and automatically whenever a new `obsidian-headless` version is released on npm (a daily workflow checks and rebuilds). Version-tagged images (`:0.0.12`, `:0.0`) pin the exact `obsidian-headless` version baked into the image.
 
 ```yaml
 # docker-compose.yml already points to:
@@ -203,6 +206,9 @@ DEVICE_NAME=obsidian-podman
 CONFLICT_STRATEGY=merge
 EXCLUDED_FOLDERS=
 FILE_TYPES=
+SYNC_MODE=
+SYNC_CONFIGS=
+CONFIG_DIR=
 ```
 
 ### Start

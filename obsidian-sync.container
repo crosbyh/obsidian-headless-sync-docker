@@ -31,6 +31,9 @@ AutoUpdate=registry
 #   CONFLICT_STRATEGY=merge
 #   EXCLUDED_FOLDERS=
 #   FILE_TYPES=
+#   SYNC_MODE=
+#   SYNC_CONFIGS=
+#   CONFIG_DIR=
 #
 # %E expands to ~/.config for user services, /etc/xdg for system services.
 EnvironmentFile=%E/obsidian-sync/obsidian-sync.env
@@ -42,6 +45,9 @@ Environment=DEVICE_NAME=obsidian-podman
 Environment=CONFLICT_STRATEGY=merge
 Environment=EXCLUDED_FOLDERS=
 Environment=FILE_TYPES=
+Environment=SYNC_MODE=
+Environment=SYNC_CONFIGS=
+Environment=CONFIG_DIR=
 
 # Vault volume — %h expands to the home directory of the service user.
 # Change the host path to wherever you want vault files stored.

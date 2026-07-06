@@ -1,7 +1,17 @@
 name: Build and Publish to GHCR
 
 on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
   workflow_call:
+    inputs:
+      version:
+        description: 'obsidian-headless version to build (without v prefix, e.g. 1.2.3)'
+        required: true
+        type: string
+  workflow_dispatch:
     inputs:
       version:
         description: 'obsidian-headless version to build (without v prefix, e.g. 1.2.3)'
@@ -71,6 +81,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            OBSIDIAN_HEADLESS_VERSION=${{ inputs.version || 'latest' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
