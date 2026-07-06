@@ -1,0 +1,83 @@
+name: Check obsidian-headless Version
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    outputs:
+      new_version: ${{ steps.compare.outputs.new_version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest obsidian-headless npm version
+        id: npm
+        run: |
+          set -euo pipefail
+          VERSION=$(npm view obsidian-headless version)
+          if [[ -z "${VERSION}" ]]; then
+            echo "::error::Could not determine obsidian-headless npm version"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Get latest repo tag
+        id: tag
+        run: |
+          LATEST=$(git tag --sort=-version:refname | head -n1)
+          # Default to 0.0.0 when no tags exist yet
+          LATEST=${LATEST:-v0.0.0}
+          # Strip leading 'v' for comparison
+          echo "version=${LATEST#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Compare versions and push tag if changed
+        id: compare
+        run: |
+          NPM_VER="${{ steps.npm.outputs.version }}"
+          TAG_VER="${{ steps.tag.outputs.version }}"
+          if [[ "${NPM_VER}" == "${TAG_VER}" ]]; then
+            echo "Already up to date (${NPM_VER}). No build needed."
+            echo "new_version=" >> "$GITHUB_OUTPUT"
+            BUILD_STATUS="✅ Already up to date — no build triggered"
+          else
+            echo "New version detected: ${NPM_VER} (was ${TAG_VER}) — creating tag v${NPM_VER}"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag "v${NPM_VER}"
+            git push origin "v${NPM_VER}"
+            echo "new_version=${NPM_VER}" >> "$GITHUB_OUTPUT"
+            BUILD_STATUS="🚀 New version detected — building \`v${NPM_VER}\`"
+          fi
+          {
+            echo "## 🔍 obsidian-headless Version Check"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **npm version** | \`${NPM_VER}\` |"
+            echo "| **Repo tag** | \`${TAG_VER}\` |"
+            echo "| **Status** | ${BUILD_STATUS} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    needs: check-version
+    if: needs.check-version.outputs.new_version != ''
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      version: ${{ needs.check-version.outputs.new_version }}
+    secrets: inherit
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write

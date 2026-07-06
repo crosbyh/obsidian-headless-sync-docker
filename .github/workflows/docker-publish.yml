@@ -1,11 +1,12 @@
 name: Build and Publish to GHCR
 
 on:
-  push:
-    branches: [main, master]
-    tags: ['v*.*.*']
-  pull_request:
-    branches: [main, master]
+  workflow_call:
+    inputs:
+      version:
+        description: 'obsidian-headless version to build (without v prefix, e.g. 1.2.3)'
+        required: true
+        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -18,10 +19,19 @@ jobs:
     permissions:
       contents: read
       packages: write
+      attestations: write
+      id-token: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Parse major.minor from version input
+        if: inputs.version
+        id: ver
+        run: |
+          MM=$(echo "${{ inputs.version }}" | cut -d. -f1-2)
+          echo "major_minor=${MM}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU (multi-platform support)
         uses: docker/setup-qemu-action@v3
@@ -44,12 +54,16 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=ref,event=pr
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=sha-,enable={{is_default_branch}}
+            type=raw,value=latest,enable=${{ github.event_name != 'pull_request' && !inputs.version }}
+            type=semver,pattern={{version}},enable=${{ !inputs.version }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ !inputs.version }}
+            type=sha,prefix=sha-,enable=${{ github.event_name != 'pull_request' && !inputs.version }}
+            type=raw,value=latest,enable=${{ inputs.version != '' }}
+            type=raw,value=${{ inputs.version }},enable=${{ inputs.version != '' }}
+            type=raw,value=${{ steps.ver.outputs.major_minor }},enable=${{ inputs.version != '' }}
 
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -59,3 +73,34 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Attest build provenance
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+
+      - name: Write job summary
+        run: |
+          {
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              echo "## 🐳 Docker Image Built (PR — not pushed)"
+            else
+              echo "## 🐳 Docker Image Published"
+            fi
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| **Image** | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\` |"
+            echo "| **Platforms** | \`linux/amd64\`, \`linux/arm64\` |"
+            if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+              echo "| **Digest** | \`${{ steps.build.outputs.digest }}\` |"
+              echo "| **Attestation** | ✅ SLSA provenance attached |"
+            fi
+            echo ""
+            echo "### 🏷️ Tags"
+            echo '```'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

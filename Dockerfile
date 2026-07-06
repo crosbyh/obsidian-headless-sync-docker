@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:lts-alpine
 
 # su-exec: minimal privilege-dropping tool (replaces gosu on Alpine)
 RUN apk add --no-cache su-exec
