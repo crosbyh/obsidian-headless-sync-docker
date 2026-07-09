@@ -17,6 +17,19 @@ ContainerName=obsidian-sync
 Pull=newer
 AutoUpdate=registry
 
+# Hardening: all runtime state lives on the vault volume or the /run tmpfs.
+ReadOnly=true
+Tmpfs=/run
+NoNewPrivileges=true
+
+# Healthcheck (quadlet does not inherit the image HEALTHCHECK by default).
+# Add Notify=healthy to delay systemd "started" until the first check passes.
+HealthCmd=/usr/local/bin/healthcheck
+HealthInterval=60s
+HealthTimeout=15s
+HealthStartPeriod=120s
+HealthRetries=3
+
 # Secrets and required configuration.
 # File must exist before the service starts.
 # Required keys: OBSIDIAN_AUTH_TOKEN, VAULT_NAME
@@ -34,6 +47,10 @@ AutoUpdate=registry
 #   SYNC_MODE=
 #   SYNC_CONFIGS=
 #   CONFIG_DIR=
+#   SYNC_ONESHOT=
+#   OBSIDIAN_AUTH_TOKEN_FILE=   (alternative to OBSIDIAN_AUTH_TOKEN; e.g. a podman secret path)
+#   VAULT_PASSWORD_FILE=        (alternative to VAULT_PASSWORD)
+#   VAULT_NAME_1= VAULT_NAME_2= (multi-vault; each syncs to a subdirectory of the volume)
 #
 # %E expands to ~/.config for user services, /etc/xdg for system services.
 EnvironmentFile=%E/obsidian-sync/obsidian-sync.env

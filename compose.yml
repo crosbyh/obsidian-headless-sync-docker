@@ -3,11 +3,13 @@ services:
     image: ghcr.io/${GHCR_REPO:-crosbyh/obsidian-headless-sync-docker}:latest
     container_name: obsidian-sync
     environment:
-      # Required
-      OBSIDIAN_AUTH_TOKEN: ${OBSIDIAN_AUTH_TOKEN}
-      VAULT_NAME: ${VAULT_NAME}
+      # Required (or use OBSIDIAN_AUTH_TOKEN_FILE with a Docker secret, see below)
+      OBSIDIAN_AUTH_TOKEN: ${OBSIDIAN_AUTH_TOKEN:-}
+      OBSIDIAN_AUTH_TOKEN_FILE: ${OBSIDIAN_AUTH_TOKEN_FILE:-}
+      VAULT_NAME: ${VAULT_NAME:-}
       # Required if vault uses end-to-end encryption
       VAULT_PASSWORD: ${VAULT_PASSWORD:-}
+      VAULT_PASSWORD_FILE: ${VAULT_PASSWORD_FILE:-}
       # File ownership: set to UID:GID of the host user who should own vault files.
       # Regular Docker : PUID=$(id -u)  PGID=$(id -g)  of your host user
       # Rootless Docker: PUID=0  PGID=0  (container root maps to the rootless host user)
@@ -22,6 +24,39 @@ services:
       SYNC_MODE: ${SYNC_MODE:-}
       SYNC_CONFIGS: ${SYNC_CONFIGS:-}
       CONFIG_DIR: ${CONFIG_DIR:-}
+      # One-shot mode: sync once and exit (pair with restart: "no")
+      SYNC_ONESHOT: ${SYNC_ONESHOT:-}
+      # Multi-vault: uncomment and add numbered groups; each vault syncs to a
+      # subdirectory of the vault volume named after the vault.
+      # VAULT_NAME_1: First Vault
+      # VAULT_PASSWORD_1: ${VAULT_PASSWORD_1:-}
+      # VAULT_NAME_2: Second Vault
     volumes:
       - ${VAULT_HOST_PATH:-./vault}:/vault
     restart: unless-stopped
+    # --- Hardening -------------------------------------------------------
+    # All runtime state lives on the vault volume or the /run tmpfs, so the
+    # root filesystem can be read-only. su-exec needs SETUID/SETGID; the
+    # entrypoint chowns the vault and supervises child processes as root.
+    read_only: true
+    tmpfs:
+      - /run
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - KILL
+    # --- Docker secrets (optional) ----------------------------------------
+    # secrets:
+    #   - obsidian_token
+    # (then set OBSIDIAN_AUTH_TOKEN_FILE=/run/secrets/obsidian_token in .env)
+
+# secrets:
+#   obsidian_token:
+#     file: ./secrets/obsidian_token.txt

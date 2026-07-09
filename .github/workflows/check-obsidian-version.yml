@@ -5,12 +5,16 @@ on:
     - cron: '0 6 * * *'
   workflow_dispatch:
 
+concurrency:
+  group: check-obsidian-version
+  cancel-in-progress: false
+
 jobs:
   check-version:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write
+      contents: read
 
     outputs:
       new_version: ${{ steps.compare.outputs.new_version }}
@@ -41,7 +45,7 @@ jobs:
           # Strip leading 'v' for comparison
           echo "version=${LATEST#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Compare versions and push tag if changed
+      - name: Compare versions
         id: compare
         run: |
           NPM_VER="${{ steps.npm.outputs.version }}"
@@ -51,13 +55,9 @@ jobs:
             echo "new_version=" >> "$GITHUB_OUTPUT"
             BUILD_STATUS="✅ Already up to date — no build triggered"
           else
-            echo "New version detected: ${NPM_VER} (was ${TAG_VER}) — creating tag v${NPM_VER}"
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag "v${NPM_VER}"
-            git push origin "v${NPM_VER}"
+            echo "New version detected: ${NPM_VER} (was ${TAG_VER}) — triggering build"
             echo "new_version=${NPM_VER}" >> "$GITHUB_OUTPUT"
-            BUILD_STATUS="🚀 New version detected — building \`v${NPM_VER}\`"
+            BUILD_STATUS="🚀 New version detected — building \`v${NPM_VER}\` (tag pushed after a successful build)"
           fi
           {
             echo "## 🔍 obsidian-headless Version Check"
@@ -81,3 +81,37 @@ jobs:
       packages: write
       attestations: write
       id-token: write
+
+  # Tag only after a successful build, so a failed build is retried on the
+  # next scheduled run instead of being skipped forever.
+  tag:
+    needs: [check-version, build]
+    if: needs.check-version.outputs.new_version != ''
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push version tag
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.check-version.outputs.new_version }}"
+          if git rev-parse -q --verify "refs/tags/v${VERSION}" >/dev/null; then
+            echo "Tag v${VERSION} already exists — nothing to do."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+          {
+            echo "## 🏷️ Tag pushed"
+            echo ""
+            echo "\`v${VERSION}\` — image built and published successfully."
+          } >> "$GITHUB_STEP_SUMMARY"

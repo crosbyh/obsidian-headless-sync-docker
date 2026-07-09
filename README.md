@@ -89,9 +89,14 @@ docker compose logs -f
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `OBSIDIAN_AUTH_TOKEN` | Yes | — | Auth token from `get-token` |
+| `OBSIDIAN_AUTH_TOKEN_FILE` | No | — | Read the token from a file instead (Docker/Podman secrets) |
 | `VAULT_NAME` | Yes (first run) | — | Exact name of the remote Obsidian Sync vault |
 | `VAULT_HOST_PATH` | Yes | `./vault` | Host path where vault files will be written |
 | `VAULT_PASSWORD` | If E2E enabled | — | Vault end-to-end encryption password (see below) |
+| `VAULT_PASSWORD_FILE` | No | — | Read the vault password from a file instead |
+| `VAULT_NAME_1`, `VAULT_NAME_2`, … | No | — | Multi-vault mode: sync several vaults, each to a subdirectory (see below) |
+| `VAULT_PASSWORD_1`, … | No | — | Per-vault E2E password in multi-vault mode (`_FILE` variants also work) |
+| `SYNC_ONESHOT` | No | — | `true` = sync once and exit instead of running continuously |
 | `PUID` | No | `1000` | UID that will own synced files on the host (see below) |
 | `PGID` | No | `1000` | GID that will own synced files on the host (see below) |
 | `VAULT_PATH` | No | `/vault` | In-container mount path (advanced) |
@@ -103,6 +108,60 @@ docker compose logs -f
 | `SYNC_CONFIGS` | No | — | Config categories to sync: `app,appearance,appearance-data,hotkey,core-plugin,core-plugin-data,community-plugin,community-plugin-data` |
 | `CONFIG_DIR` | No | `.obsidian` | Vault config directory name |
 | `GHCR_REPO` | No | — | Override image repository when self-building |
+
+---
+
+## Multi-Vault Mode
+
+To sync more than one vault from a single container, use numbered variables instead of `VAULT_NAME`:
+
+```env
+VAULT_NAME_1=Personal
+VAULT_NAME_2=Work
+VAULT_PASSWORD_2=work-vault-e2e-password
+```
+
+Each vault syncs to a subdirectory of the vault volume named after the vault (e.g. `./vault/Personal`, `./vault/Work`). Shared settings (`DEVICE_NAME`, `CONFLICT_STRATEGY`, `SYNC_MODE`, etc.) apply to every vault. If any vault's sync process dies, the container exits so the restart policy can bring everything back up.
+
+`VAULT_NAME` is ignored when numbered variables are present.
+
+---
+
+## One-Shot Mode
+
+Set `SYNC_ONESHOT=true` to run a single sync per configured vault and exit (exit code `1` if any vault failed). Useful for cron jobs, systemd timers, or Kubernetes CronJobs:
+
+```bash
+docker compose run --rm -e SYNC_ONESHOT=true obsidian-sync
+```
+
+Pair with `restart: "no"` if you set it permanently in compose.
+
+---
+
+## Secrets (`*_FILE` variables)
+
+Instead of putting credentials in environment variables (visible in `docker inspect`), point `OBSIDIAN_AUTH_TOKEN_FILE` / `VAULT_PASSWORD_FILE` (or `VAULT_PASSWORD_<n>_FILE`) at a file — e.g. a Docker/Podman secret mounted at `/run/secrets/...`. Setting both the plain and `_FILE` variant of the same variable is an error. See the commented `secrets:` block in `compose.yml`.
+
+---
+
+## Healthcheck
+
+The image ships a `HEALTHCHECK` that verifies the sync process is alive and `ob sync-status` succeeds for every configured vault (checked every 60s after a 120s start period). Inspect it with:
+
+```bash
+docker inspect --format '{{.State.Health.Status}}' obsidian-sync
+```
+
+The Podman quadlet wires the same check via `HealthCmd=`; add `Notify=healthy` to the unit if you want systemd to consider the service started only after the first passing check. One-shot mode disables the check.
+
+---
+
+## Security
+
+- The container starts as root only to fix vault ownership, then drops to `PUID:PGID` (via `su-exec`) before running any `ob` command.
+- All runtime state (CLI config, token cache) lives on a `/run` tmpfs — nothing is written to the image filesystem, so `compose.yml` runs the container with a **read-only root filesystem**, `no-new-privileges`, and all capabilities dropped except the handful needed (`SETUID`, `SETGID`, `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`). The quadlet sets `ReadOnly=true` and `NoNewPrivileges=true` likewise.
+- Prefer `*_FILE` secrets over plain env vars so the token doesn't appear in `docker inspect` output.
 
 ---
 
@@ -209,6 +268,9 @@ FILE_TYPES=
 SYNC_MODE=
 SYNC_CONFIGS=
 CONFIG_DIR=
+SYNC_ONESHOT=
+OBSIDIAN_AUTH_TOKEN_FILE=
+VAULT_PASSWORD_FILE=
 ```
 
 ### Start
