@@ -53,10 +53,18 @@ services:
       - FOWNER
       - KILL
     # --- Docker secrets (optional) ----------------------------------------
+    # Mount credentials as secrets instead of env vars, then point the _FILE
+    # variables at them in .env:
+    #   OBSIDIAN_AUTH_TOKEN_FILE=/run/secrets/obsidian_token
+    #   VAULT_PASSWORD_FILE=/run/secrets/vault_password
+    # (Multi-vault: VAULT_PASSWORD_1_FILE, VAULT_PASSWORD_2_FILE, ... work the
+    # same way — add one secret per encrypted vault.)
     # secrets:
     #   - obsidian_token
-    # (then set OBSIDIAN_AUTH_TOKEN_FILE=/run/secrets/obsidian_token in .env)
+    #   - vault_password
 
 # secrets:
 #   obsidian_token:
 #     file: ./secrets/obsidian_token.txt
+#   vault_password:
+#     file: ./secrets/vault_password.txt

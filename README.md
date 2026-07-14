@@ -141,7 +141,52 @@ Pair with `restart: "no"` if you set it permanently in compose.
 
 ## Secrets (`*_FILE` variables)
 
-Instead of putting credentials in environment variables (visible in `docker inspect`), point `OBSIDIAN_AUTH_TOKEN_FILE` / `VAULT_PASSWORD_FILE` (or `VAULT_PASSWORD_<n>_FILE`) at a file — e.g. a Docker/Podman secret mounted at `/run/secrets/...`. Setting both the plain and `_FILE` variant of the same variable is an error. See the commented `secrets:` block in `compose.yml`.
+Instead of putting credentials in environment variables (visible in `docker inspect`), point `OBSIDIAN_AUTH_TOKEN_FILE` / `VAULT_PASSWORD_FILE` (or `VAULT_PASSWORD_<n>_FILE` in multi-vault mode) at a file — e.g. a Docker/Podman secret mounted at `/run/secrets/...`. Setting both the plain and `_FILE` variant of the same variable is an error.
+
+### Docker Compose example
+
+Create the secret files (mode 600, and keep the directory out of version control):
+
+```bash
+mkdir -p secrets
+install -m 600 /dev/null secrets/obsidian_token.txt
+install -m 600 /dev/null secrets/vault_password.txt
+# then paste the token / vault encryption password into each file
+```
+
+Declare them in `compose.yml` (uncomment the ready-made blocks):
+
+```yaml
+services:
+  obsidian-sync:
+    # ...
+    secrets:
+      - obsidian_token
+      - vault_password
+
+secrets:
+  obsidian_token:
+    file: ./secrets/obsidian_token.txt
+  vault_password:
+    file: ./secrets/vault_password.txt
+```
+
+Then in `.env`, point the `_FILE` variables at the mounted secrets and leave the plain variables empty:
+
+```env
+OBSIDIAN_AUTH_TOKEN=
+OBSIDIAN_AUTH_TOKEN_FILE=/run/secrets/obsidian_token
+VAULT_PASSWORD=
+VAULT_PASSWORD_FILE=/run/secrets/vault_password
+```
+
+> **Note:** the secret file should contain only the credential itself. A single trailing newline is fine (editors usually add one), but avoid extra whitespace or comments.
+
+**Multi-vault:** add one secret per encrypted vault and reference them with numbered variables, e.g. `VAULT_PASSWORD_1_FILE=/run/secrets/vault_password_1`.
+
+**Docker Swarm:** the same `_FILE` variables work with Swarm-managed secrets — create them with `docker secret create obsidian_token -` and reference them by `external: true` in the stack file; they mount at `/run/secrets/<name>` just like file-based secrets.
+
+**Podman:** `podman secret create` + `podman run --secret obsidian_token,mode=0400` mounts the secret at `/run/secrets/obsidian_token`, so the same `_FILE` values apply.
 
 ---
 
@@ -206,6 +251,8 @@ Add the password to your `.env`:
 ```env
 VAULT_PASSWORD=your-vault-encryption-password
 ```
+
+Or, better, provide it as a Docker secret via `VAULT_PASSWORD_FILE` so it never appears in `docker inspect` — see [Secrets](#secrets-_file-variables).
 
 > **Note:** `VAULT_PASSWORD` is the *vault encryption password* you chose in Obsidian, not your Obsidian account password. They are separate credentials.
 

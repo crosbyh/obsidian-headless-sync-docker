@@ -55,6 +55,15 @@ HealthRetries=3
 # %E expands to ~/.config for user services, /etc/xdg for system services.
 EnvironmentFile=%E/obsidian-sync/obsidian-sync.env
 
+# Podman secrets (optional): create them once with
+#   printf '%s' "<token>"    | podman secret create obsidian_token -
+#   printf '%s' "<password>" | podman secret create vault_password -
+# then uncomment the lines below and set in the env file:
+#   OBSIDIAN_AUTH_TOKEN_FILE=/run/secrets/obsidian_token
+#   VAULT_PASSWORD_FILE=/run/secrets/vault_password
+#Secret=obsidian_token
+#Secret=vault_password
+
 Environment=PUID=0
 Environment=PGID=0
 Environment=VAULT_PATH=/vault
