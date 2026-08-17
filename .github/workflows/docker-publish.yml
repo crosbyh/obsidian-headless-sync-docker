@@ -31,10 +31,30 @@ jobs:
       packages: write
       attestations: write
       id-token: write
+      security-events: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          # Full history so the latest version tag is visible for CLI pinning
+          fetch-depth: 0
+
+      # Pin the obsidian-headless version for every build: the explicit input
+      # when given (version-check / manual runs), otherwise the newest repo
+      # tag — so a code push rebuilds the already-released CLI version instead
+      # of silently floating to whatever npm 'latest' is that day.
+      - name: Resolve obsidian-headless version to build
+        id: cliver
+        run: |
+          set -euo pipefail
+          if [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION=$(git tag --sort=-version:refname | head -n1)
+            VERSION="${VERSION#v}"
+          fi
+          echo "version=${VERSION:-latest}" >> "$GITHUB_OUTPUT"
 
       - name: Parse major.minor from version input
         if: inputs.version
@@ -44,14 +64,14 @@ jobs:
           echo "major_minor=${MM}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU (multi-platform support)
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -59,7 +79,7 @@ jobs:
 
       - name: Extract Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -72,9 +92,36 @@ jobs:
             type=raw,value=${{ inputs.version }},enable=${{ inputs.version != '' }}
             type=raw,value=${{ steps.ver.outputs.major_minor }},enable=${{ inputs.version != '' }}
 
+      # Build the amd64 image locally first and scan it before anything is
+      # pushed; the multi-arch push below reuses the layer cache.
+      - name: Build image for security scan (amd64)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: obsidian-headless-sync:scan
+          build-args: |
+            OBSIDIAN_HEADLESS_VERSION=${{ steps.cliver.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          image-ref: obsidian-headless-sync:scan
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload Trivy SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
       - name: Build and push Docker image
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -82,13 +129,13 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            OBSIDIAN_HEADLESS_VERSION=${{ inputs.version || 'latest' }}
+            OBSIDIAN_HEADLESS_VERSION=${{ steps.cliver.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Attest build provenance
         if: github.event_name != 'pull_request'
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v4
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.build.outputs.digest }}
@@ -105,7 +152,9 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| **Image** | \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\` |"
+            echo "| **obsidian-headless** | \`${{ steps.cliver.outputs.version }}\` |"
             echo "| **Platforms** | \`linux/amd64\`, \`linux/arm64\` |"
+            echo "| **Security scan** | Trivy SARIF uploaded to Security tab |"
             if [[ "${{ github.event_name }}" != "pull_request" ]]; then
               echo "| **Digest** | \`${{ steps.build.outputs.digest }}\` |"
               echo "| **Attestation** | ✅ SLSA provenance attached |"

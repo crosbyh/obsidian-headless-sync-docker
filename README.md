@@ -257,6 +257,14 @@ Or, better, provide it as a Docker secret via `VAULT_PASSWORD_FILE` so it never 
 
 > **Note:** `VAULT_PASSWORD` is the *vault encryption password* you chose in Obsidian, not your Obsidian account password. They are separate credentials.
 
+> **⚠️ Passwords containing `$`:** Docker Compose interpolates `.env` files, so a bare `$` in the value (e.g. `pa$sword`) is treated as the start of a variable reference and silently stripped, truncating your password. If your password contains a `$`, wrap it in single quotes so Compose treats it literally:
+>
+> ```env
+> VAULT_PASSWORD='pa$sword'
+> ```
+>
+> The same applies to `VAULT_PASSWORD_1`, `VAULT_PASSWORD_2`, … in multi-vault mode. Passwords provided via `*_FILE` secrets are read verbatim and don't need escaping.
+
 ---
 
 ## Using a Pre-Built Image vs. Building Locally
@@ -388,6 +396,7 @@ Your vault files remain on disk at `VAULT_HOST_PATH`.
 
 **"Failed to validate password" on setup**
 - Your vault has end-to-end encryption enabled. Set `VAULT_PASSWORD` in `.env` to the encryption password from **Obsidian → Settings → Sync**. This is distinct from your Obsidian account password.
+- If the password contains a `$` character, make sure it's wrapped in single quotes in `.env` (e.g. `VAULT_PASSWORD='pa$sword'`), otherwise Compose's variable interpolation will silently truncate it. Run `docker compose config` and check the resolved `VAULT_PASSWORD` value matches what you expect.
 
 **Vault files owned by wrong user / permission denied**
 - Set `PUID` and `PGID` in `.env` to the UID/GID of the host user who should own the files (`id` will show your current values).

@@ -21,7 +21,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -81,6 +81,7 @@ jobs:
       packages: write
       attestations: write
       id-token: write
+      security-events: write
 
   # Tag only after a successful build, so a failed build is retried on the
   # next scheduled run instead of being skipped forever.
@@ -94,7 +95,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
