@@ -17,7 +17,8 @@ ContainerName=obsidian-sync
 Pull=newer
 AutoUpdate=registry
 
-# Hardening: all runtime state lives on the vault volume or the /run tmpfs.
+# Hardening: all runtime state lives on the vault volume, the sync-state
+# volume, or the /run tmpfs.
 ReadOnly=true
 Tmpfs=/run
 NoNewPrivileges=true
@@ -78,6 +79,10 @@ Environment=CONFIG_DIR=
 # Vault volume — %h expands to the home directory of the service user.
 # Change the host path to wherever you want vault files stored.
 Volume=%h/obsidian-vault:/vault:z
+
+# Persistent CLI state (auth/device/sync db) on a named volume, so the same
+# registered sync device is reused across container recreates.
+Volume=obsidian-sync-state:/data
 
 [Service]
 Restart=always

@@ -19,6 +19,7 @@ echo "==========================================="
 # Locate the stored token file (fall back to a find if path differs)
 TOKEN=""
 CANDIDATES="
+  ${XDG_CONFIG_HOME:-$HOME/.config}/obsidian-headless/auth_token
   ${HOME}/.config/obsidian-headless/auth_token
   ${HOME}/.local/share/obsidian-headless/auth_token
   ${HOME}/.obsidian-headless/auth_token
@@ -32,7 +33,7 @@ for candidate in $CANDIDATES; do
 done
 
 if [ -z "$TOKEN" ]; then
-  FOUND=$(find "$HOME" -path "*obsidian-headless*" -name "auth_token" 2>/dev/null | head -1)
+  FOUND=$(find "${XDG_CONFIG_HOME:-$HOME/.config}" "$HOME" -path "*obsidian-headless*" -name "auth_token" 2>/dev/null | head -1)
   if [ -n "$FOUND" ]; then
     TOKEN=$(cat "$FOUND")
   fi

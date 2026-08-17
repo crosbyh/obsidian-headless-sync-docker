@@ -17,8 +17,15 @@ COPY get-token.sh   /usr/local/bin/get-token
 COPY healthcheck.sh /usr/local/bin/healthcheck
 RUN chmod +x /usr/local/bin/docker-entrypoint /usr/local/bin/get-token /usr/local/bin/healthcheck
 
-# Vault data directory (bind-mount your local vault here)
-VOLUME ["/vault"]
+# CLI state (auth/device/sync db) lives under XDG_CONFIG_HOME. Set it via ENV
+# rather than the entrypoint: su-exec overwrites HOME with the target UID's
+# passwd home on every privilege drop, but leaves XDG_CONFIG_HOME alone, and
+# the healthcheck inherits it too. /data is a volume so the registered sync
+# device identity survives container recreates.
+ENV XDG_CONFIG_HOME=/data/config
+
+# /vault: bind-mount your local vault here. /data: persistent sync state.
+VOLUME ["/vault", "/data"]
 
 HEALTHCHECK --interval=60s --timeout=15s --start-period=120s --retries=3 \
   CMD ["healthcheck"]

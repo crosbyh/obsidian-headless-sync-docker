@@ -33,11 +33,17 @@ services:
       # VAULT_NAME_2: Second Vault
     volumes:
       - ${VAULT_HOST_PATH:-./vault}:/vault
+      # Persistent CLI state (auth/device/sync db). Keeping this on a named
+      # volume means the container re-uses the same registered sync device
+      # across recreates instead of piling up new devices in your Obsidian
+      # Sync account.
+      - sync-state:/data
     restart: unless-stopped
     # --- Hardening -------------------------------------------------------
-    # All runtime state lives on the vault volume or the /run tmpfs, so the
-    # root filesystem can be read-only. su-exec needs SETUID/SETGID; the
-    # entrypoint chowns the vault and supervises child processes as root.
+    # All runtime state lives on the vault volume, the sync-state volume, or
+    # the /run tmpfs, so the root filesystem can be read-only. su-exec needs
+    # SETUID/SETGID; the entrypoint chowns the vault and supervises child
+    # processes as root.
     read_only: true
     tmpfs:
       - /run
@@ -62,6 +68,9 @@ services:
     # secrets:
     #   - obsidian_token
     #   - vault_password
+
+volumes:
+  sync-state:
 
 # secrets:
 #   obsidian_token:

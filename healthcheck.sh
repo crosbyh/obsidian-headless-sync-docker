@@ -7,6 +7,9 @@
 PUID="${PUID:-1000}"
 PGID="${PGID:-1000}"
 VAULT_PATH="${VAULT_PATH:-/vault}"
+# su-exec resets HOME, so CLI state is addressed via XDG_CONFIG_HOME (set as
+# image ENV; defaulted here for safety — must match the entrypoint).
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-/data/config}"
 export HOME="/run/obsidian-home"
 
 # Resolve token from a secrets file if the _FILE convention is used

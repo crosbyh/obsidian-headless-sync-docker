@@ -5,13 +5,19 @@ PUID="${PUID:-1000}"
 PGID="${PGID:-1000}"
 VAULT_PATH="${VAULT_PATH:-/vault}"
 
-# Writable home dir for obsidian-headless config state (~/.config/obsidian-headless/)
-# Uses /run (tmpfs) so it's always clean and doesn't pollute the vault mount.
+# CLI state (auth/device/sync db) goes to $XDG_CONFIG_HOME/obsidian-headless.
+# HOME cannot be used for this: su-exec resets HOME to the target UID's passwd
+# entry (/home/node for UID 1000), which is empty on the read-only rootfs.
+# XDG_CONFIG_HOME survives the privilege drop, and /data is a volume so the
+# registered sync device identity persists across container recreates.
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-/data/config}"
+
+# Writable home for anything else that insists on $HOME (tmpfs, always clean).
 export HOME="/run/obsidian-home"
 
 _setup_home() {
-  mkdir -p "${HOME}/.config/obsidian-headless"
-  chown -R "${PUID}:${PGID}" "${HOME}"
+  mkdir -p "${HOME}" "${XDG_CONFIG_HOME}/obsidian-headless"
+  chown -R "${PUID}:${PGID}" "${HOME}" "${XDG_CONFIG_HOME}"
 }
 
 # ---------------------------------------------------------------------------

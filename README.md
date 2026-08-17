@@ -205,7 +205,8 @@ The Podman quadlet wires the same check via `HealthCmd=`; add `Notify=healthy` t
 ## Security
 
 - The container starts as root only to fix vault ownership, then drops to `PUID:PGID` (via `su-exec`) before running any `ob` command.
-- All runtime state (CLI config, token cache) lives on a `/run` tmpfs — nothing is written to the image filesystem, so `compose.yml` runs the container with a **read-only root filesystem**, `no-new-privileges`, and all capabilities dropped except the handful needed (`SETUID`, `SETGID`, `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`). The quadlet sets `ReadOnly=true` and `NoNewPrivileges=true` likewise.
+- CLI state (auth token cache, sync device identity, sync database) lives under `XDG_CONFIG_HOME=/data/config` on a dedicated `/data` volume; everything else writable is on a `/run` tmpfs. Nothing is written to the image filesystem, so `compose.yml` runs the container with a **read-only root filesystem**, `no-new-privileges`, and all capabilities dropped except the handful needed (`SETUID`, `SETGID`, `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `KILL`). The quadlet sets `ReadOnly=true` and `NoNewPrivileges=true` likewise.
+- Because `/data` persists, the container re-uses the same registered sync device across restarts and recreates instead of registering a new device in your Obsidian Sync account each time. Remove the `sync-state` volume if you ever want a factory-fresh state (the container will register as a new device on next start).
 - Prefer `*_FILE` secrets over plain env vars so the token doesn't appear in `docker inspect` output.
 
 ---
