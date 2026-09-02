@@ -1,7 +1,10 @@
 FROM node:lts-alpine
 
-# su-exec: minimal privilege-dropping tool (replaces gosu on Alpine)
-RUN apk add --no-cache su-exec
+# Pull in Alpine security updates published since the base image was cut
+# (e.g. libssl3/libcrypto3), then add su-exec: minimal privilege-dropping
+# tool (replaces gosu on Alpine).
+RUN apk upgrade --no-cache \
+ && apk add --no-cache su-exec
 
 # Install obsidian-headless CLI (requires Node 22+)
 # Pinned via build arg so version-triggered CI builds bust the layer cache
