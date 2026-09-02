@@ -6,10 +6,18 @@ RUN apk add --no-cache su-exec
 # Install obsidian-headless CLI (requires Node 22+)
 # Pinned via build arg so version-triggered CI builds bust the layer cache
 # and the image actually contains the version its tag claims.
+#
+# npm/npx/corepack/yarn are then removed in the same layer: nothing uses them at
+# runtime (ob is a plain symlink to cli.js run by node), and npm's bundled
+# node_modules are the source of every Trivy finding in the image.
 ARG OBSIDIAN_HEADLESS_VERSION=latest
 RUN npm install -g "obsidian-headless@${OBSIDIAN_HEADLESS_VERSION}" \
  && node -e "console.log(require('/usr/local/lib/node_modules/obsidian-headless/package.json').version)" \
-      > /etc/obsidian-headless-version
+      > /etc/obsidian-headless-version \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+           /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+           /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn* \
+           /root/.npm /tmp/*
 
 # Copy helper scripts
 COPY entrypoint.sh  /usr/local/bin/docker-entrypoint
