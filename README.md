@@ -74,7 +74,7 @@ See [Environment Variables](#environment-variables) for all options.
 docker compose up -d
 ```
 
-On first run the container performs a one-time `ob sync-setup` to link the local directory to your remote vault, then enters continuous sync mode. Subsequent restarts skip the setup and go straight to syncing.
+On first run the container performs a one-time `ob sync-setup` to link the local directory to your remote vault, then enters continuous sync mode. Subsequent restarts skip the setup (detected via `ob sync-status`) and go straight to syncing; optional settings such as `SYNC_CONFIGS` and `FILE_TYPES` are still re-applied on every start. Setup runs again only if the local sync config is missing or `VAULT_NAME` points at a different vault.
 
 Watch logs:
 
