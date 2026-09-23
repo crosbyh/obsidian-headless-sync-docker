@@ -92,12 +92,34 @@ echo "[obsidian-headless] Running as UID=${PUID} GID=${PGID}"
 # ---------------------------------------------------------------------------
 # Vault setup + optional sync config, applied per vault path
 # ---------------------------------------------------------------------------
+_vault_configured() {
+  # _vault_configured <remote-vault-name-or-id> <local-path>
+  # True when <local-path> already has a sync config for that vault (with its
+  # E2E key). ob sync-status exits non-zero when there is no config or the key
+  # is missing; the name/id comparison catches a changed VAULT_NAME.
+  _status=$(su-exec "${PUID}:${PGID}" ob sync-status --path "$2" --json 2>/dev/null) || return 1
+  printf '%s' "$_status" | VAULT_WANT="$1" node -e '
+    let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
+      const c = JSON.parse(s), w = process.env.VAULT_WANT;
+      process.exit(c.vaultName === w || c.vaultId === w ? 0 : 1);
+    });' 2>/dev/null
+}
+
 _setup_vault() {
   # _setup_vault <remote-vault-name> <password> <local-path>
   _name="$1"; _pass="$2"; _path="$3"
 
   mkdir -p "$_path"
   chown "${PUID}:${PGID}" "$_path"
+
+  # ob sync-setup rewrites the vault's sync config from scratch (dropping
+  # configs/file types/excluded folders), so re-running it on every start
+  # makes the following sync-config calls re-queue every newly-allowed server
+  # file as a pending download — clobbering local edits. Only run it once.
+  if _vault_configured "$_name" "$_path"; then
+    echo "[obsidian-headless] Vault '$_name' already configured at $_path — skipping setup"
+    return 0
+  fi
 
   echo "[obsidian-headless] Configuring sync for vault: '$_name' → $_path"
   set -- ob sync-setup --vault "$_name" --path "$_path"
