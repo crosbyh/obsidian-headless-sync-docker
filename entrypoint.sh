@@ -4,6 +4,9 @@ set -e
 PUID="${PUID:-1000}"
 PGID="${PGID:-1000}"
 VAULT_PATH="${VAULT_PATH:-/vault}"
+# Default here, not only in compose.yml: without it ob falls back to the
+# container hostname, so every recreate shows up as a new device in Sync history.
+DEVICE_NAME="${DEVICE_NAME:-obsidian-docker}"
 
 # CLI state (auth/device/sync db) goes to $XDG_CONFIG_HOME/obsidian-headless.
 # HOME cannot be used for this: su-exec resets HOME to the target UID's passwd
